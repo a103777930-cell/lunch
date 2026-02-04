@@ -34,12 +34,18 @@
 <hr>
 
 <!-- 人员管理 -->
-<h2>👥 人员设置</h2>
+<h2>👥 人员管理</h2>
+
 <input id="newUserInput" placeholder="新增人员（如 G）">
 <button onclick="addUser()">添加</button>
 
+<br><br>
+
+<select id="removeUserSelect"></select>
+<button onclick="removeUser()" style="color:red;">删除</button>
+
 <p style="color:#666;font-size:12px;">
-  ⚠️ 新增人员会立刻参与排班和统计
+  ⚠️ 删除人员不会影响已统计的历史次数
 </p>
 
 <hr>
@@ -61,7 +67,7 @@
 <table id="statTable"></table>
 
 <script>
-/* ========= 时间 & Key ========= */
+/* ===== 时间 & Key ===== */
 const today = new Date().toISOString().slice(0,10);
 const monthKey = today.slice(0,7);
 
@@ -70,13 +76,13 @@ const stateKey = "lunch_" + today;
 const statKey = "monthly_stats";
 const snapKey = "snap_" + today;
 
-/* ========= 人员 ========= */
+/* ===== 人员 ===== */
 let users = JSON.parse(localStorage.getItem(userKey)) || ["A","B","C","D","E","F"];
 
-/* ========= 登录 ========= */
+/* ===== 登录 ===== */
 let currentUser = localStorage.getItem("currentUser") || "";
 
-/* ========= 状态 ========= */
+/* ===== 状态 ===== */
 let state = JSON.parse(localStorage.getItem(stateKey)) || {
   rest: users[users.length - 1],
   eat11: [],
@@ -87,7 +93,7 @@ let monthlyStats = JSON.parse(localStorage.getItem(statKey)) || {};
 monthlyStats[monthKey] ||= {};
 users.forEach(u => monthlyStats[monthKey][u] ||= 0);
 
-/* ========= 工具 ========= */
+/* ===== 工具 ===== */
 function saveAll() {
   localStorage.setItem(userKey, JSON.stringify(users));
   localStorage.setItem(stateKey, JSON.stringify(state));
@@ -98,20 +104,22 @@ function after13() {
   return new Date().getHours() >= 13;
 }
 
-/* ========= 13:00 快照 ========= */
+/* ===== 13:00 快照 ===== */
 function snapshotIfNeeded() {
   if (!after13()) return;
   if (localStorage.getItem(snapKey)) return;
 
   state.eat11.forEach(u => {
-    monthlyStats[monthKey][u]++;
+    if (monthlyStats[monthKey][u] !== undefined) {
+      monthlyStats[monthKey][u]++;
+    }
   });
 
   localStorage.setItem(snapKey, "done");
   saveAll();
 }
 
-/* ========= 登录 ========= */
+/* ===== 登录 ===== */
 function login() {
   currentUser = document.getElementById("userSelect").value;
   localStorage.setItem("currentUser", currentUser);
@@ -124,22 +132,47 @@ function logout() {
   init();
 }
 
-/* ========= 新增人员 ========= */
+/* ===== 新增人员 ===== */
 function addUser() {
-  const input = document.getElementById("newUserInput");
-  const name = input.value.trim();
+  const name = document.getElementById("newUserInput").value.trim();
   if (!name || users.includes(name)) return;
 
   users.push(name);
   monthlyStats[monthKey][name] = 0;
   state.eat12.push(name);
 
-  input.value = "";
+  document.getElementById("newUserInput").value = "";
   saveAll();
   init();
 }
 
-/* ========= 业务 ========= */
+/* ===== 删除人员 ===== */
+function removeUser() {
+  const name = document.getElementById("removeUserSelect").value;
+  if (!name) return;
+  if (users.length <= 1) {
+    alert("至少保留 1 人");
+    return;
+  }
+
+  users = users.filter(u => u !== name);
+
+  state.eat11 = state.eat11.filter(u => u !== name);
+  state.eat12 = state.eat12.filter(u => u !== name);
+
+  if (state.rest === name) {
+    state.rest = users[0];
+  }
+
+  if (currentUser === name) {
+    logout();
+  }
+
+  saveAll();
+  init();
+}
+
+/* ===== 业务 ===== */
 function choose11(u) {
   if (u !== currentUser) return;
   if (state.eat11.includes(u)) return;
@@ -151,7 +184,7 @@ function choose11(u) {
   render();
 }
 
-/* ========= 导出 CSV ========= */
+/* ===== 导出 CSV ===== */
 function exportCSV() {
   let csv = "人员,11点次数\n";
   users.forEach(u => {
@@ -165,7 +198,7 @@ function exportCSV() {
   link.click();
 }
 
-/* ========= 渲染 ========= */
+/* ===== 渲染 ===== */
 function render() {
   snapshotIfNeeded();
 
@@ -193,10 +226,13 @@ function renderTable() {
   document.getElementById("statTable").innerHTML = html;
 }
 
-/* ========= 初始化 ========= */
+/* ===== 初始化 ===== */
 function init() {
-  const userSel = document.getElementById("userSelect");
-  userSel.innerHTML = users.map(u => `<option>${u}</option>`).join("");
+  document.getElementById("userSelect").innerHTML =
+    users.map(u => `<option>${u}</option>`).join("");
+
+  document.getElementById("removeUserSelect").innerHTML =
+    users.map(u => `<option>${u}</option>`).join("");
 
   if (!currentUser) {
     document.getElementById("loginBox").style.display = "block";
@@ -209,12 +245,12 @@ function init() {
   document.getElementById("currentUserBar").style.display = "block";
   document.getElementById("currentUserName").innerText = currentUser;
 
-  const restSel = document.getElementById("restSelect");
-  restSel.innerHTML = users.map(u =>
-    `<option ${u===state.rest?"selected":""}>${u}</option>`
-  ).join("");
+  document.getElementById("restSelect").innerHTML =
+    users.map(u =>
+      `<option ${u===state.rest?"selected":""}>${u}</option>`
+    ).join("");
 
-  restSel.onchange = e => {
+  document.getElementById("restSelect").onchange = e => {
     state.rest = e.target.value;
     state.eat11 = [];
     state.eat12 = users.filter(u => u !== state.rest);
