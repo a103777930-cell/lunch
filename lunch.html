@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>午饭排班</title>
+<style>
+  body { font-family: Arial; padding: 20px; }
+  h2 { margin-top: 25px; }
+  .user { margin: 5px 0; }
+  button { margin-left: 10px; }
+  .full { color: red; }
+  .warn { color: orange; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<h1>🍱 午饭排班</h1>
+
+<label>今日休息：
+  <select id="restSelect"></select>
+</label>
+
+<h2>🕚 11 点（最多 2 人）</h2>
+<div id="eat11"></div>
+<div id="fullTip" class="full"></div>
+
+<h2>🕛 12 点</h2>
+<div id="eat12"></div>
+
+<script>
+const users = ["A","B","C","D","E","F"];
+const MAX_11 = 2;
+const FAIR_LIMIT = 3; // 最近 5 天内最多 11 点次数
+
+const today = new Date().toISOString().slice(0,10);
+const storeKey = "lunch_" + today;
+const statKey = "lunch_stat";
+
+let state = JSON.parse(localStorage.getItem(storeKey)) || {
+  rest: "F",
+  eat11: [],
+  eat12: []
+};
+
+let stats = JSON.parse(localStorage.getItem(statKey)) || {};
+
+users.forEach(u => stats[u] ||= []);
+
+function save() {
+  localStorage.setItem(storeKey, JSON.stringify(state));
+  localStorage.setItem(statKey, JSON.stringify(stats));
+}
+
+function init() {
+  const sel = document.getElementById("restSelect");
+  sel.innerHTML = "";
+  users.forEach(u => {
+    const o = document.createElement("option");
+    o.value = u; o.text = u;
+    if (u === state.rest) o.selected = true;
+    sel.appendChild(o);
+  });
+
+  sel.onchange = e => {
+    state.rest = e.target.value;
+    state.eat11 = [];
+    state.eat12 = users.filter(u => u !== state.rest);
+    save();
+    render();
+  };
+
+  if (!state.eat12.length) {
+    state.eat12 = users.filter(u => u !== state.rest);
+  }
+
+  render();
+}
+
+function recent11Count(user) {
+  return (stats[user] || []).filter(d => d >= offsetDay(-5)).length;
+}
+
+function offsetDay(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0,10);
+}
+
+function choose11(user) {
+  if (state.eat11.includes(user)) return;
+  if (state.eat11.length >= MAX_11) return;
+
+  if (recent11Count(user) >= FAIR_LIMIT) {
+    alert(user + " 最近 11 点次数太多了 😅");
+    return;
+  }
+
+  state.eat11.push(user);
+  state.eat12 = state.eat12.filter(u => u !== user);
+  stats[user].push(today);
+
+  save();
+  render();
+}
+
+function render() {
+  const d11 = document.getElementById("eat11");
+  const d12 = document.getElementById("eat12");
+  const tip = document.getElementById("fullTip");
+
+  d11.innerHTML = "";
+  d12.innerHTML = "";
+  tip.innerHTML = "";
+
+  state.eat11.forEach(u => {
+    d11.innerHTML += `<div class="user">${u}</div>`;
+  });
+
+  if (state.eat11.length >= MAX_11) {
+    tip.innerText = "11 点已满";
+  }
+
+  state.eat12.forEach(u => {
+    const warn = recent11Count(u) >= FAIR_LIMIT
+      ? `<span class="warn">（最近 11 点偏多）</span>` : "";
+
+    d12.innerHTML += `
+      <div class="user">
+        ${u} ${warn}
+        <button onclick="choose11('${u}')">我要 11 点</button>
+      </div>
+    `;
+  });
+}
+
+init();
+</script>
+
+</body>
+</html>
