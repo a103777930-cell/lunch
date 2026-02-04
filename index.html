@@ -17,7 +17,13 @@
 
 <h1>🍱 午饭排班</h1>
 
-<!-- 简单登录 -->
+<!-- 当前用户 -->
+<div id="currentUserBar" style="margin:10px 0; color:#555; display:none;">
+  当前用户：<b id="currentUserName"></b>
+  <button onclick="logout()">切换</button>
+</div>
+
+<!-- 登录 -->
 <div id="loginBox">
   👤 我是：
   <select id="userSelect"></select>
@@ -26,7 +32,7 @@
 
 <hr>
 
-<!-- 休息人 -->
+<!-- 今日休息 -->
 <label>
   今日休息：
   <select id="restSelect"></select>
@@ -40,19 +46,19 @@
 <div id="eat12"></div>
 
 <script>
-/* ================= 基础配置 ================= */
+/* ========== 基础配置 ========== */
 const users = ["A","B","C","D","E","F"];
 const MAX_11 = 2;
-const FAIR_LIMIT = 3; // 最近 5 天内最多 11 点次数
+const FAIR_LIMIT = 3;
 
 const today = new Date().toISOString().slice(0,10);
 const storeKey = "lunch_" + today;
 const statKey = "lunch_stat";
 
-/* ================= 登录状态 ================= */
+/* ========== 登录状态 ========== */
 let currentUser = localStorage.getItem("currentUser") || "";
 
-/* ================= 数据 ================= */
+/* ========== 数据 ========== */
 let state = JSON.parse(localStorage.getItem(storeKey)) || {
   rest: "F",
   eat11: [],
@@ -62,7 +68,7 @@ let state = JSON.parse(localStorage.getItem(storeKey)) || {
 let stats = JSON.parse(localStorage.getItem(statKey)) || {};
 users.forEach(u => stats[u] ||= []);
 
-/* ================= 工具函数 ================= */
+/* ========== 工具函数 ========== */
 function save() {
   localStorage.setItem(storeKey, JSON.stringify(state));
   localStorage.setItem(statKey, JSON.stringify(stats));
@@ -78,16 +84,28 @@ function recent11Count(user) {
   return (stats[user] || []).filter(d => d >= offsetDay(-5)).length;
 }
 
-/* ================= 登录 ================= */
+/* ========== 登录 / 切换 ========== */
 function login() {
   const sel = document.getElementById("userSelect");
   currentUser = sel.value;
   localStorage.setItem("currentUser", currentUser);
+
   document.getElementById("loginBox").style.display = "none";
-  init();   // 🔑 关键修复点：登录后重新初始化
+  document.getElementById("currentUserName").innerText = currentUser;
+  document.getElementById("currentUserBar").style.display = "block";
+
+  init();
 }
 
-/* ================= 业务逻辑 ================= */
+function logout() {
+  localStorage.removeItem("currentUser");
+  currentUser = "";
+  document.getElementById("loginBox").style.display = "block";
+  document.getElementById("currentUserBar").style.display = "none";
+  init();
+}
+
+/* ========== 业务逻辑 ========== */
 function choose11(user) {
   if (user !== currentUser) return;
   if (state.eat11.includes(user)) return;
@@ -106,7 +124,7 @@ function choose11(user) {
   render();
 }
 
-/* ================= 渲染 ================= */
+/* ========== 渲染 ========== */
 function render() {
   const d11 = document.getElementById("eat11");
   const d12 = document.getElementById("eat12");
@@ -141,9 +159,9 @@ function render() {
   });
 }
 
-/* ================= 初始化 ================= */
+/* ========== 初始化 ========== */
 function init() {
-  /* 登录下拉 */
+  // 登录下拉
   const userSel = document.getElementById("userSelect");
   userSel.innerHTML = "";
   users.forEach(u => {
@@ -153,14 +171,19 @@ function init() {
     userSel.appendChild(o);
   });
 
-  if (!currentUser) {
+  // 当前用户显示
+  if (currentUser) {
+    document.getElementById("currentUserName").innerText = currentUser;
+    document.getElementById("currentUserBar").style.display = "block";
+    document.getElementById("loginBox").style.display = "none";
+  } else {
+    document.getElementById("currentUserBar").style.display = "none";
+    document.getElementById("loginBox").style.display = "block";
     render();
     return;
-  } else {
-    document.getElementById("loginBox").style.display = "none";
   }
 
-  /* 休息人下拉（所有人都可改） */
+  // 今日休息
   const restSel = document.getElementById("restSelect");
   restSel.innerHTML = "";
   users.forEach(u => {
