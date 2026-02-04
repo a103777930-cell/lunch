@@ -44,18 +44,15 @@
   <h3>人员管理</h3>
   <input id="newUser" placeholder="新增成员名">
   <button onclick="addUser()">新增</button>
-
   <div id="userList"></div>
 
   <button onclick="exportExcel()">📤 导出 Excel</button>
   <hr>
 </div>
 
-<!-- 今日休息 -->
-<label>
-  今日休息：
-  <select id="restSelect"></select>
-</label>
+<!-- 今日休息（多人） -->
+<h2>😴 今日休息</h2>
+<div id="restBox"></div>
 
 <h2>🕚 11 点</h2>
 <div id="eat11"></div>
@@ -67,10 +64,9 @@
 <div id="statTable"></div>
 
 <script>
-/* ========= 基础配置 ========= */
+/* ========= 配置 ========= */
 let USERS = JSON.parse(localStorage.getItem("users")) || ["A","B","C","D","E","F"];
 const ADMINS = ["A","B"];
-
 let MAX_11 = Number(localStorage.getItem("MAX_11")) || 2;
 
 const today = new Date().toISOString().slice(0,10);
@@ -82,7 +78,7 @@ let currentUser = localStorage.getItem("currentUser") || "";
 
 /* ========= 数据 ========= */
 let state = JSON.parse(localStorage.getItem(storeKey)) || {
-  rest: "",
+  rest: [],     // ← 多人休息
   eat11: [],
   eat12: []
 };
@@ -102,7 +98,7 @@ function save() {
   localStorage.setItem("MAX_11", MAX_11);
 }
 
-/* ========= 登录逻辑 ========= */
+/* ========= 登录 ========= */
 function login() {
   currentUser = document.getElementById("userSelect").value;
   localStorage.setItem("currentUser", currentUser);
@@ -127,10 +123,23 @@ function addUser() {
 function removeUser(u) {
   USERS = USERS.filter(x => x !== u);
   delete stats[u];
+  state.rest = state.rest.filter(x => x !== u);
   state.eat11 = state.eat11.filter(x => x !== u);
   state.eat12 = state.eat12.filter(x => x !== u);
   save();
   init();
+}
+
+/* ========= 休息勾选 ========= */
+function toggleRest(user, checked) {
+  if (checked) {
+    if (!state.rest.includes(user)) state.rest.push(user);
+    state.eat11 = state.eat11.filter(u => u !== user);
+  } else {
+    state.rest = state.rest.filter(u => u !== user);
+  }
+  save();
+  render();
 }
 
 /* ========= 选择 11 点 ========= */
@@ -138,23 +147,20 @@ function choose11(user) {
   if (user !== currentUser) return;
   if (state.eat11.includes(user)) return;
   if (state.eat11.length >= MAX_11) return;
+  if (state.rest.includes(user)) return;
 
   state.eat11.push(user);
-  state.eat12 = state.eat12.filter(u => u !== user);
   stats[user].push(today);
   save();
   render();
 }
 
-/* ========= Excel 导出 ========= */
+/* ========= Excel ========= */
 function exportExcel() {
   let csv = "日期,姓名\n";
   Object.keys(stats).forEach(u => {
-    stats[u].forEach(d => {
-      csv += `${d},${u}\n`;
-    });
+    stats[u].forEach(d => csv += `${d},${u}\n`);
   });
-
   const blob = new Blob([csv], { type: "text/csv" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -170,6 +176,21 @@ function render() {
   document.getElementById("adminPanel").style.display =
     isAdmin() ? "block" : "none";
 
+  /* 休息 */
+  const restBox = document.getElementById("restBox");
+  restBox.innerHTML = "";
+  USERS.forEach(u => {
+    restBox.innerHTML += `
+      <label>
+        <input type="checkbox"
+          ${state.rest.includes(u) ? "checked" : ""}
+          onchange="toggleRest('${u}', this.checked)">
+        ${u}
+      </label><br>
+    `;
+  });
+
+  /* 11 / 12 */
   const d11 = document.getElementById("eat11");
   const d12 = document.getElementById("eat12");
   d11.innerHTML = "";
@@ -177,21 +198,23 @@ function render() {
 
   state.eat11.forEach(u => d11.innerHTML += `<div>${u}</div>`);
 
-  USERS.filter(u => u !== state.rest && !state.eat11.includes(u))
-    .forEach(u => {
-      d12.innerHTML += `
-        <div>
-          ${u}
-          ${u === currentUser ? `<button onclick="choose11('${u}')">我要 11 点</button>` : ""}
-        </div>`;
-    });
+  USERS.filter(u =>
+    !state.rest.includes(u) &&
+    !state.eat11.includes(u)
+  ).forEach(u => {
+    d12.innerHTML += `
+      <div>${u}
+        ${u === currentUser ? `<button onclick="choose11('${u}')">我要 11 点</button>` : ""}
+      </div>
+    `;
+  });
 
   renderStats();
 }
 
-/* ========= 统计表 ========= */
+/* ========= 统计 ========= */
 function renderStats() {
-  let html = "<table><tr><th>姓名</th><th>次数</th></tr>";
+  let html = "<table><tr><th>姓名</th><th>11 点次数</th></tr>";
   USERS.forEach(u => {
     html += `<tr><td>${u}</td><td>${stats[u]?.length || 0}</td></tr>`;
   });
@@ -201,7 +224,6 @@ function renderStats() {
 
 /* ========= 初始化 ========= */
 function init() {
-  // 登录下拉
   const sel = document.getElementById("userSelect");
   sel.innerHTML = "";
   USERS.forEach(u => sel.innerHTML += `<option>${u}</option>`);
@@ -211,21 +233,6 @@ function init() {
   document.getElementById("loginBox").style.display = "none";
   document.getElementById("currentUserBar").style.display = "block";
 
-  // 休息下拉
-  const restSel = document.getElementById("restSelect");
-  restSel.innerHTML = `<option value="">无</option>`;
-  USERS.forEach(u => restSel.innerHTML += `<option>${u}</option>`);
-  restSel.value = state.rest;
-
-  restSel.onchange = e => {
-    state.rest = e.target.value;
-    state.eat11 = [];
-    state.eat12 = USERS.filter(u => u !== state.rest);
-    save();
-    render();
-  };
-
-  // 管理员设置
   if (isAdmin()) {
     const maxSel = document.getElementById("max11Select");
     maxSel.innerHTML = "";
@@ -250,10 +257,6 @@ function init() {
           }
         </div>`;
     });
-  }
-
-  if (!state.eat12.length) {
-    state.eat12 = USERS.filter(u => u !== state.rest);
   }
 
   render();
