@@ -12,10 +12,20 @@
   .warn { color: orange; font-size: 12px; }
 </style>
 </head>
+
 <body>
 
 <h1>🍱 午饭排班</h1>
 
+<!-- 简单登录 -->
+<div id="loginBox">
+  👤 我是：
+  <select id="userSelect"></select>
+  <button onclick="login()">确认</button>
+</div>
+<hr>
+
+<!-- 休息人 -->
 <label>今日休息：
   <select id="restSelect"></select>
 </label>
@@ -28,6 +38,7 @@
 <div id="eat12"></div>
 
 <script>
+/* ================= 基础配置 ================= */
 const users = ["A","B","C","D","E","F"];
 const MAX_11 = 2;
 const FAIR_LIMIT = 3; // 最近 5 天内最多 11 点次数
@@ -36,6 +47,10 @@ const today = new Date().toISOString().slice(0,10);
 const storeKey = "lunch_" + today;
 const statKey = "lunch_stat";
 
+/* ================= 登录状态 ================= */
+let currentUser = localStorage.getItem("currentUser") || "";
+
+/* ================= 数据 ================= */
 let state = JSON.parse(localStorage.getItem(storeKey)) || {
   rest: "F",
   eat11: [],
@@ -43,41 +58,12 @@ let state = JSON.parse(localStorage.getItem(storeKey)) || {
 };
 
 let stats = JSON.parse(localStorage.getItem(statKey)) || {};
-
 users.forEach(u => stats[u] ||= []);
 
+/* ================= 工具函数 ================= */
 function save() {
   localStorage.setItem(storeKey, JSON.stringify(state));
   localStorage.setItem(statKey, JSON.stringify(stats));
-}
-
-function init() {
-  const sel = document.getElementById("restSelect");
-  sel.innerHTML = "";
-  users.forEach(u => {
-    const o = document.createElement("option");
-    o.value = u; o.text = u;
-    if (u === state.rest) o.selected = true;
-    sel.appendChild(o);
-  });
-
-  sel.onchange = e => {
-    state.rest = e.target.value;
-    state.eat11 = [];
-    state.eat12 = users.filter(u => u !== state.rest);
-    save();
-    render();
-  };
-
-  if (!state.eat12.length) {
-    state.eat12 = users.filter(u => u !== state.rest);
-  }
-
-  render();
-}
-
-function recent11Count(user) {
-  return (stats[user] || []).filter(d => d >= offsetDay(-5)).length;
 }
 
 function offsetDay(n) {
@@ -86,7 +72,22 @@ function offsetDay(n) {
   return d.toISOString().slice(0,10);
 }
 
+function recent11Count(user) {
+  return (stats[user] || []).filter(d => d >= offsetDay(-5)).length;
+}
+
+/* ================= 登录 ================= */
+function login() {
+  const sel = document.getElementById("userSelect");
+  currentUser = sel.value;
+  localStorage.setItem("currentUser", currentUser);
+  document.getElementById("loginBox").style.display = "none";
+  render();
+}
+
+/* ================= 业务逻辑 ================= */
 function choose11(user) {
+  if (user !== currentUser) return;
   if (state.eat11.includes(user)) return;
   if (state.eat11.length >= MAX_11) return;
 
@@ -103,6 +104,7 @@ function choose11(user) {
   render();
 }
 
+/* ================= 渲染 ================= */
 function render() {
   const d11 = document.getElementById("eat11");
   const d12 = document.getElementById("eat12");
@@ -127,15 +129,62 @@ function render() {
     d12.innerHTML += `
       <div class="user">
         ${u} ${warn}
-        <button onclick="choose11('${u}')">我要 11 点</button>
+        ${u === currentUser
+          ? `<button onclick="choose11('${u}')">我要 11 点</button>`
+          : `<span class="warn">（不是你）</span>`
+        }
       </div>
     `;
   });
+}
+
+/* ================= 初始化 ================= */
+function init() {
+  // 登录下拉
+  const userSel = document.getElementById("userSelect");
+  userSel.innerHTML = "";
+  users.forEach(u => {
+    const o = document.createElement("option");
+    o.value = u;
+    o.text = u;
+    userSel.appendChild(o);
+  });
+
+  if (!currentUser) {
+    render();
+    return;
+  } else {
+    document.getElementById("loginBox").style.display = "none";
+  }
+
+  // 休息人下拉
+  const restSel = document.getElementById("restSelect");
+  restSel.innerHTML = "";
+  users.forEach(u => {
+    const o = document.createElement("option");
+    o.value = u;
+    o.text = u;
+    if (u === state.rest) o.selected = true;
+    restSel.appendChild(o);
+  });
+
+  restSel.onchange = e => {
+    state.rest = e.target.value;
+    state.eat11 = [];
+    state.eat12 = users.filter(u => u !== state.rest);
+    save();
+    render();
+  };
+
+  if (!state.eat12.length) {
+    state.eat12 = users.filter(u => u !== state.rest);
+  }
+
+  render();
 }
 
 init();
 </script>
 
 </body>
-
 </html>
