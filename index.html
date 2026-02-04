@@ -7,22 +7,16 @@
   body { font-family: Arial; padding: 20px; }
   h2 { margin-top: 25px; }
   .user { margin: 5px 0; }
-  button { margin-left: 6px; }
-  .full { color: red; }
+  button { margin-left: 10px; }
+  .admin { color: green; font-weight: bold; }
   table { border-collapse: collapse; margin-top: 10px; }
-  th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: center; }
+  th, td { border: 1px solid #aaa; padding: 6px 10px; }
 </style>
 </head>
 
 <body>
 
 <h1>🍱 午饭排班</h1>
-
-<!-- 当前用户 -->
-<div id="currentUserBar" style="display:none;margin-bottom:10px;">
-  当前用户：<b id="currentUserName"></b>
-  <button onclick="logout()">切换</button>
-</div>
 
 <!-- 登录 -->
 <div id="loginBox">
@@ -31,95 +25,84 @@
   <button onclick="login()">确认</button>
 </div>
 
-<hr>
-
-<!-- 人员管理 -->
-<h2>👥 人员管理</h2>
-
-<input id="newUserInput" placeholder="新增人员（如 G）">
-<button onclick="addUser()">添加</button>
-
-<br><br>
-
-<select id="removeUserSelect"></select>
-<button onclick="removeUser()" style="color:red;">删除</button>
-
-<p style="color:#666;font-size:12px;">
-  ⚠️ 删除人员不会影响已统计的历史次数
-</p>
+<div id="currentUserBar" style="display:none">
+  当前用户：<span id="currentUserName"></span>
+  <button onclick="logout()">切换用户</button>
+</div>
 
 <hr>
 
+<!-- 管理员面板 -->
+<div id="adminPanel" style="display:none">
+  <h2 class="admin">👑 管理员设置</h2>
+
+  <div>
+    11 点最多人数：
+    <select id="max11Select"></select>
+  </div>
+
+  <h3>人员管理</h3>
+  <input id="newUser" placeholder="新增成员名">
+  <button onclick="addUser()">新增</button>
+
+  <div id="userList"></div>
+
+  <button onclick="exportExcel()">📤 导出 Excel</button>
+  <hr>
+</div>
+
+<!-- 今日休息 -->
 <label>
   今日休息：
   <select id="restSelect"></select>
 </label>
 
-<h2>🕚 11 点（最多 2 人）</h2>
+<h2>🕚 11 点</h2>
 <div id="eat11"></div>
-<div id="fullTip" class="full"></div>
 
 <h2>🕛 12 点</h2>
 <div id="eat12"></div>
 
 <h2>📊 本月 11 点统计</h2>
-<button onclick="exportCSV()">📤 导出 Excel</button>
-<table id="statTable"></table>
+<div id="statTable"></div>
 
 <script>
-/* ===== 时间 & Key ===== */
+/* ========= 基础配置 ========= */
+let USERS = JSON.parse(localStorage.getItem("users")) || ["A","B","C","D","E","F"];
+const ADMINS = ["A","B"];
+
+let MAX_11 = Number(localStorage.getItem("MAX_11")) || 2;
+
 const today = new Date().toISOString().slice(0,10);
-const monthKey = today.slice(0,7);
+const storeKey = "lunch_" + today;
+const statKey = "lunch_stat";
 
-const userKey = "lunch_users";
-const stateKey = "lunch_" + today;
-const statKey = "monthly_stats";
-const snapKey = "snap_" + today;
-
-/* ===== 人员 ===== */
-let users = JSON.parse(localStorage.getItem(userKey)) || ["A","B","C","D","E","F"];
-
-/* ===== 登录 ===== */
+/* ========= 登录 ========= */
 let currentUser = localStorage.getItem("currentUser") || "";
 
-/* ===== 状态 ===== */
-let state = JSON.parse(localStorage.getItem(stateKey)) || {
-  rest: users[users.length - 1],
+/* ========= 数据 ========= */
+let state = JSON.parse(localStorage.getItem(storeKey)) || {
+  rest: "",
   eat11: [],
   eat12: []
 };
 
-let monthlyStats = JSON.parse(localStorage.getItem(statKey)) || {};
-monthlyStats[monthKey] ||= {};
-users.forEach(u => monthlyStats[monthKey][u] ||= 0);
+let stats = JSON.parse(localStorage.getItem(statKey)) || {};
+USERS.forEach(u => stats[u] ||= []);
 
-/* ===== 工具 ===== */
-function saveAll() {
-  localStorage.setItem(userKey, JSON.stringify(users));
-  localStorage.setItem(stateKey, JSON.stringify(state));
-  localStorage.setItem(statKey, JSON.stringify(monthlyStats));
+/* ========= 工具 ========= */
+function isAdmin() {
+  return ADMINS.includes(currentUser);
 }
 
-function after13() {
-  return new Date().getHours() >= 13;
+function save() {
+  localStorage.setItem(storeKey, JSON.stringify(state));
+  localStorage.setItem(statKey, JSON.stringify(stats));
+  localStorage.setItem("users", JSON.stringify(USERS));
+  localStorage.setItem("MAX_11", MAX_11);
 }
 
-/* ===== 13:00 快照 ===== */
-function snapshotIfNeeded() {
-  if (!after13()) return;
-  if (localStorage.getItem(snapKey)) return;
-
-  state.eat11.forEach(u => {
-    if (monthlyStats[monthKey][u] !== undefined) {
-      monthlyStats[monthKey][u]++;
-    }
-  });
-
-  localStorage.setItem(snapKey, "done");
-  saveAll();
-}
-
-/* ===== 登录 ===== */
+/* ========= 登录逻辑 ========= */
 function login() {
   currentUser = document.getElementById("userSelect").value;
   localStorage.setItem("currentUser", currentUser);
@@ -128,138 +111,149 @@ function login() {
 
 function logout() {
   localStorage.removeItem("currentUser");
-  currentUser = "";
-  init();
+  location.reload();
 }
 
-/* ===== 新增人员 ===== */
+/* ========= 人员管理 ========= */
 function addUser() {
-  const name = document.getElementById("newUserInput").value.trim();
-  if (!name || users.includes(name)) return;
-
-  users.push(name);
-  monthlyStats[monthKey][name] = 0;
-  state.eat12.push(name);
-
-  document.getElementById("newUserInput").value = "";
-  saveAll();
+  const name = document.getElementById("newUser").value.trim();
+  if (!name || USERS.includes(name)) return;
+  USERS.push(name);
+  stats[name] = [];
+  save();
   init();
 }
 
-/* ===== 删除人员 ===== */
-function removeUser() {
-  const name = document.getElementById("removeUserSelect").value;
-  if (!name) return;
-  if (users.length <= 1) {
-    alert("至少保留 1 人");
-    return;
-  }
-
-  users = users.filter(u => u !== name);
-
-  state.eat11 = state.eat11.filter(u => u !== name);
-  state.eat12 = state.eat12.filter(u => u !== name);
-
-  if (state.rest === name) {
-    state.rest = users[0];
-  }
-
-  if (currentUser === name) {
-    logout();
-  }
-
-  saveAll();
-  init();
-}
-
-/* ===== 业务 ===== */
-function choose11(u) {
-  if (u !== currentUser) return;
-  if (state.eat11.includes(u)) return;
-  if (state.eat11.length >= 2) return;
-
-  state.eat11.push(u);
+function removeUser(u) {
+  USERS = USERS.filter(x => x !== u);
+  delete stats[u];
+  state.eat11 = state.eat11.filter(x => x !== u);
   state.eat12 = state.eat12.filter(x => x !== u);
-  saveAll();
+  save();
+  init();
+}
+
+/* ========= 选择 11 点 ========= */
+function choose11(user) {
+  if (user !== currentUser) return;
+  if (state.eat11.includes(user)) return;
+  if (state.eat11.length >= MAX_11) return;
+
+  state.eat11.push(user);
+  state.eat12 = state.eat12.filter(u => u !== user);
+  stats[user].push(today);
+  save();
   render();
 }
 
-/* ===== 导出 CSV ===== */
-function exportCSV() {
-  let csv = "人员,11点次数\n";
-  users.forEach(u => {
-    csv += `${u},${monthlyStats[monthKey][u]}\n`;
+/* ========= Excel 导出 ========= */
+function exportExcel() {
+  let csv = "日期,姓名\n";
+  Object.keys(stats).forEach(u => {
+    stats[u].forEach(d => {
+      csv += `${d},${u}\n`;
+    });
   });
 
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `11点统计_${monthKey}.csv`;
-  link.click();
+  const blob = new Blob([csv], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "lunch_stat.csv";
+  a.click();
 }
 
-/* ===== 渲染 ===== */
+/* ========= 渲染 ========= */
 function render() {
-  snapshotIfNeeded();
+  document.getElementById("currentUserName").innerText =
+    currentUser + (isAdmin() ? "（管理员）" : "");
 
-  document.getElementById("eat11").innerHTML =
-    state.eat11.map(u => `<div>${u}</div>`).join("");
+  document.getElementById("adminPanel").style.display =
+    isAdmin() ? "block" : "none";
 
-  document.getElementById("fullTip").innerText =
-    state.eat11.length >= 2 ? "11 点已满" : "";
+  const d11 = document.getElementById("eat11");
+  const d12 = document.getElementById("eat12");
+  d11.innerHTML = "";
+  d12.innerHTML = "";
 
-  document.getElementById("eat12").innerHTML =
-    state.eat12.map(u =>
-      `<div>${u}
-        ${u === currentUser ? `<button onclick="choose11('${u}')">我要11点</button>` : ""}
-      </div>`
-    ).join("");
+  state.eat11.forEach(u => d11.innerHTML += `<div>${u}</div>`);
 
-  renderTable();
+  USERS.filter(u => u !== state.rest && !state.eat11.includes(u))
+    .forEach(u => {
+      d12.innerHTML += `
+        <div>
+          ${u}
+          ${u === currentUser ? `<button onclick="choose11('${u}')">我要 11 点</button>` : ""}
+        </div>`;
+    });
+
+  renderStats();
 }
 
-function renderTable() {
-  let html = "<tr><th>人员</th><th>次数</th></tr>";
-  users.forEach(u => {
-    html += `<tr><td>${u}</td><td>${monthlyStats[monthKey][u]}</td></tr>`;
+/* ========= 统计表 ========= */
+function renderStats() {
+  let html = "<table><tr><th>姓名</th><th>次数</th></tr>";
+  USERS.forEach(u => {
+    html += `<tr><td>${u}</td><td>${stats[u]?.length || 0}</td></tr>`;
   });
+  html += "</table>";
   document.getElementById("statTable").innerHTML = html;
 }
 
-/* ===== 初始化 ===== */
+/* ========= 初始化 ========= */
 function init() {
-  document.getElementById("userSelect").innerHTML =
-    users.map(u => `<option>${u}</option>`).join("");
+  // 登录下拉
+  const sel = document.getElementById("userSelect");
+  sel.innerHTML = "";
+  USERS.forEach(u => sel.innerHTML += `<option>${u}</option>`);
 
-  document.getElementById("removeUserSelect").innerHTML =
-    users.map(u => `<option>${u}</option>`).join("");
-
-  if (!currentUser) {
-    document.getElementById("loginBox").style.display = "block";
-    document.getElementById("currentUserBar").style.display = "none";
-    render();
-    return;
-  }
+  if (!currentUser) return;
 
   document.getElementById("loginBox").style.display = "none";
   document.getElementById("currentUserBar").style.display = "block";
-  document.getElementById("currentUserName").innerText = currentUser;
 
-  document.getElementById("restSelect").innerHTML =
-    users.map(u =>
-      `<option ${u===state.rest?"selected":""}>${u}</option>`
-    ).join("");
+  // 休息下拉
+  const restSel = document.getElementById("restSelect");
+  restSel.innerHTML = `<option value="">无</option>`;
+  USERS.forEach(u => restSel.innerHTML += `<option>${u}</option>`);
+  restSel.value = state.rest;
 
-  document.getElementById("restSelect").onchange = e => {
+  restSel.onchange = e => {
     state.rest = e.target.value;
     state.eat11 = [];
-    state.eat12 = users.filter(u => u !== state.rest);
-    saveAll();
+    state.eat12 = USERS.filter(u => u !== state.rest);
+    save();
     render();
   };
 
+  // 管理员设置
+  if (isAdmin()) {
+    const maxSel = document.getElementById("max11Select");
+    maxSel.innerHTML = "";
+    for (let i = 1; i <= USERS.length; i++) {
+      maxSel.innerHTML += `<option value="${i}">${i}</option>`;
+    }
+    maxSel.value = MAX_11;
+    maxSel.onchange = e => {
+      MAX_11 = Number(e.target.value);
+      save();
+      render();
+    };
+
+    const ul = document.getElementById("userList");
+    ul.innerHTML = "";
+    USERS.forEach(u => {
+      ul.innerHTML += `
+        <div>${u}
+          ${!ADMINS.includes(u)
+            ? `<button onclick="removeUser('${u}')">删除</button>`
+            : "(管理员)"
+          }
+        </div>`;
+    });
+  }
+
   if (!state.eat12.length) {
-    state.eat12 = users.filter(u => u !== state.rest);
+    state.eat12 = USERS.filter(u => u !== state.rest);
   }
 
   render();
