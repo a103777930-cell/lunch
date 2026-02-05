@@ -49,6 +49,8 @@
   .section-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
   .user-grid { display: flex; flex-wrap: wrap; gap: 5px; }
   .user-grid .user-item { flex: 0 0 calc(33.33% - 5px); display: flex; align-items: center; font-size: 14px; }
+  .admin-user { display: flex; justify-content: space-between; }
+  .admin-user button { margin-left: 6ch; } /* 离人名第一个字 6 个字符 */
 </style>
 </head>
 
@@ -78,10 +80,6 @@
         <h2>😴 今日休息</h2>
         <span id="restCount"></span>
       </div>
-      <div>
-        11 点最多休息人数：
-        <select id="maxRestSelect"></select>
-      </div>
       <div id="restBox" class="user-grid" style="margin-top:10px;"></div>
     </div>
 
@@ -91,7 +89,11 @@
         <h2>🕚 11 点</h2>
         <span id="eat11Count"></span>
       </div>
-      <div id="eat11" class="user-grid"></div>
+      <div>
+        11 点最多休息人数：
+        <select id="maxRestSelect"></select>
+      </div>
+      <div id="eat11" class="user-grid" style="margin-top:10px;"></div>
     </div>
 
     <!-- 12点 -->
@@ -213,13 +215,6 @@ function render(){
   document.getElementById("mainArea").classList.toggle("compact", !isAdmin());
   document.getElementById("adminPanel").style.display = isAdmin()?"block":"none";
 
-  // 休息人数上限
-  const maxRestSel = document.getElementById("maxRestSelect");
-  maxRestSel.innerHTML="";
-  for(let i=1;i<=USERS.length;i++) maxRestSel.innerHTML+=`<option value="${i}">${i}</option>`;
-  maxRestSel.value = MAX_REST;
-  maxRestSel.onchange = e=>{ MAX_REST=Number(e.target.value); save(); render(); };
-
   // 今日休息
   const restBox = document.getElementById("restBox");
   restBox.innerHTML="";
@@ -238,6 +233,13 @@ function render(){
        .forEach(u=>d12.innerHTML+=`<div class="user-item">${u}${u===currentUser?`<button onclick="choose11('${u}')">我要 11 点</button>`:""}</div>`);
   document.getElementById("eat11Count").innerText = `${state.eat11.length}/${MAX_11}`;
 
+  // 11点最多休息人数选择
+  const maxRestSel = document.getElementById("maxRestSelect");
+  maxRestSel.innerHTML="";
+  for(let i=1;i<=USERS.length;i++) maxRestSel.innerHTML+=`<option value="${i}">${i}</option>`;
+  maxRestSel.value = MAX_REST;
+  maxRestSel.onchange = e=>{ MAX_REST=Number(e.target.value); save(); render(); };
+
   // 统计
   renderStats();
 
@@ -245,7 +247,7 @@ function render(){
   if(isAdmin()){
     const ul = document.getElementById("userList");
     ul.innerHTML="";
-    USERS.forEach(u=>ul.innerHTML+=`<div>${u} ${ADMINS.includes(u)?"(管理员)":"<button onclick='removeUser(\""+u+"\")'>删除</button>"} </div>`);
+    USERS.forEach(u=>ul.innerHTML+=`<div class="admin-user">${u} ${ADMINS.includes(u)?"(管理员)":"<button onclick='removeUser(\""+u+"\")'>删除</button>"} </div>`);
   }
 }
 
