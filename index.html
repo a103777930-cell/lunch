@@ -153,7 +153,7 @@ function removeUser(u){
   state.eat12 = state.eat12.filter(x=>x!==u);
   ADMINS = ADMINS.filter(x=>x!==u);
   save();
-  init();
+  render();
 }
 
 function toggleRest(user, checked){
@@ -262,7 +262,11 @@ function render(){
   if(isAdmin()){
     const ul = document.getElementById("userList");
     ul.innerHTML = "";
-    USERS.forEach(u=> ul.innerHTML += `<div class="admin-user">${u} ${ADMINS.includes(u)?"(管理员)":"<button onclick='removeUser(\""+u+"\")'>删除</button>"} </div>`);
+    USERS.forEach(u=>{
+      // 管理员可以删除任何人，包括其他管理员
+      const delBtn = `<button onclick='removeUser("${u}")'>删除</button>`;
+      ul.innerHTML += `<div class="admin-user">${u} ${delBtn}</div>`;
+    });
   }
 }
 
