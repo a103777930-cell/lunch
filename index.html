@@ -12,7 +12,7 @@
     color: #333;
   }
   h1 { text-align: center; margin-bottom: 20px; }
-  h2 { margin: 0; font-size: 18px; }
+  h2 { margin: 0; }
   .container {
     display: flex;
     gap: 20px;
@@ -24,7 +24,7 @@
     gap: 20px;
     transition: flex 0.3s;
   }
-  .main.compact { flex: 1; } /* 非管理员占半屏 */
+  .main.compact { flex: 1; }
   .card {
     background: #fff;
     padding: 15px 20px;
@@ -47,13 +47,8 @@
   th, td { border: 1px solid #aaa; padding: 6px 10px; text-align: center; }
   #currentUserBar { margin-bottom: 20px; text-align: center; }
   .section-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-  .user-grid { 
-    display: grid; 
-    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); 
-    gap: 5px; 
-  }
-  .user-item { display: flex; align-items: center; font-size: 14px; justify-content: space-between; }
-  .user-item button { margin-left: 3px; padding: 2px 4px; font-size: 12px; }
+  .user-grid { display: flex; flex-wrap: wrap; gap: 5px; }
+  .user-grid .user-item { flex: 0 0 calc(33.33% - 5px); display: flex; align-items: center; font-size: 14px; }
 </style>
 </head>
 
@@ -97,7 +92,6 @@
         <span id="eat11Count"></span>
       </div>
       <div id="eat11" class="user-grid"></div>
-      <div id="eat12" class="user-grid" style="margin-top:5px;"></div>
     </div>
 
     <!-- 12点 -->
@@ -175,13 +169,14 @@ function addUser() {
 
 function removeUser(u) {
   if (!confirm(`确定删除用户 ${u} 及其所有数据吗？`)) return;
-  USERS = USERS.filter(x=>x!==u);
-  delete stats[u];
+  USERS = USERS.filter(x => x!==u);
+  stats[u] && delete stats[u];
   state.rest = state.rest.filter(x=>x!==u);
   state.eat11 = state.eat11.filter(x=>x!==u);
   state.eat12 = state.eat12.filter(x=>x!==u);
   ADMINS = ADMINS.filter(x=>x!==u);
-  save(); init();
+  save();
+  init();
 }
 
 function toggleRest(user, checked) {
@@ -235,15 +230,13 @@ function render(){
 
   // 11点
   const d11 = document.getElementById("eat11");
-  d11.innerHTML="";
-  state.eat11.forEach(u=>d11.innerHTML+=`<div class="user-item">${u}</div>`);
-  document.getElementById("eat11Count").innerText = `${state.eat11.length}/${MAX_11}`;
-
-  // 12点
   const d12 = document.getElementById("eat12");
+  d11.innerHTML="";
   d12.innerHTML="";
+  state.eat11.forEach(u=>d11.innerHTML+=`<div class="user-item">${u}</div>`);
   USERS.filter(u=>!state.rest.includes(u)&&!state.eat11.includes(u))
        .forEach(u=>d12.innerHTML+=`<div class="user-item">${u}${u===currentUser?`<button onclick="choose11('${u}')">我要 11 点</button>`:""}</div>`);
+  document.getElementById("eat11Count").innerText = `${state.eat11.length}/${MAX_11}`;
 
   // 统计
   renderStats();
