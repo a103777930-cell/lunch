@@ -73,6 +73,7 @@
     <div class="card" id="restCard">
       <div class="section-title">
         <h2>😴 今日休息</h2>
+        <span id="restCount"></span>
       </div>
       <div id="restBox" class="user-grid" style="margin-top:10px;"></div>
     </div>
@@ -82,6 +83,10 @@
       <div class="section-title">
         <h2>🕚 11 点</h2>
         <span id="eat11Count"></span>
+      </div>
+      <div>
+        11 点最多休息人数：
+        <select id="maxRestSelect"></select>
       </div>
       <div id="eat11" class="user-grid" style="margin-top:10px;"></div>
     </div>
@@ -94,7 +99,7 @@
       <div id="eat12" class="user-grid"></div>
     </div>
 
-    <!-- 统计表放最下面 -->
+    <!-- 统计 -->
     <div class="card">
       <h2>📊 本月 11 点统计</h2>
       <div id="statTable"></div>
@@ -117,6 +122,7 @@
 let USERS = JSON.parse(localStorage.getItem("users")) || ["A","B","C","D","E","F"];
 let ADMINS = JSON.parse(localStorage.getItem("admins")) || ["A","B"];
 let MAX_11 = Number(localStorage.getItem("MAX_11")) || 2;
+let MAX_REST = Number(localStorage.getItem("MAX_REST")) || USERS.length;
 
 const today = new Date().toISOString().slice(0,10);
 const storeKey = "lunch_" + today;
@@ -135,6 +141,7 @@ function save() {
   localStorage.setItem("users", JSON.stringify(USERS));
   localStorage.setItem("admins", JSON.stringify(ADMINS));
   localStorage.setItem("MAX_11", MAX_11);
+  localStorage.setItem("MAX_REST", MAX_REST);
 }
 
 function login() {
@@ -174,8 +181,11 @@ function removeUser(u) {
 }
 
 function toggleRest(user, checked) {
-  if(checked && !state.rest.includes(user)) state.rest.push(user);
-  if(!checked) state.rest = state.rest.filter(u=>u!==user);
+  if(checked){
+    if(state.rest.length >= MAX_REST){ alert(`休息人数已达上限 (${MAX_REST})`); render(); return; }
+    if(!state.rest.includes(user)) state.rest.push(user);
+    state.eat11 = state.eat11.filter(u=>u!==user);
+  } else state.rest = state.rest.filter(u=>u!==user);
   save();
   render();
 }
@@ -229,6 +239,7 @@ function render() {
   USERS.forEach(u => {
     restBox.innerHTML += `<div class="user-item"><label><input type="checkbox" ${state.rest.includes(u) ? "checked" : ""} onchange="toggleRest('${u}',this.checked)">${u}</label></div>`;
   });
+  document.getElementById("restCount").innerText = `${state.rest.length}/${MAX_REST}`;
 
   // 11点
   const d11 = document.getElementById("eat11");
@@ -237,8 +248,15 @@ function render() {
   d12.innerHTML = "";
   state.eat11.forEach(u => d11.innerHTML += `<div class="user-item">${u}</div>`);
   USERS.filter(u => !state.rest.includes(u) && !state.eat11.includes(u))
-       .forEach(u => d12.innerHTML += `<div class="user-item">${u}${u===currentUser?`<button onclick="choose11('${u}')">我要 11 点</button>`:""}</div>`);
+       .forEach(u => d12.innerHTML += `<div class="user-item">${u}${u === currentUser ? `<button onclick="choose11('${u}')">我要 11 点</button>` : ""}</div>`);
   document.getElementById("eat11Count").innerText = `${state.eat11.length}/${MAX_11}`;
+
+  // 11点最多休息人数
+  const maxRestSel = document.getElementById("maxRestSelect");
+  maxRestSel.innerHTML = "";
+  for(let i=1;i<=USERS.length;i++) maxRestSel.innerHTML += `<option value="${i}">${i}</option>`;
+  maxRestSel.value = MAX_REST;
+  maxRestSel.onchange = e => { MAX_REST = Number(e.target.value); save(); render(); };
 
   renderStats();
 
