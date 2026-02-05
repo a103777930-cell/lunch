@@ -12,7 +12,7 @@
     color: #333;
   }
   h1 { text-align: center; margin-bottom: 20px; }
-  h2 { margin-top: 0; margin-bottom: 10px; }
+  h2 { margin: 0; }
   .container {
     display: flex;
     justify-content: space-between;
@@ -24,11 +24,12 @@
     flex-direction: column;
     gap: 20px;
   }
+  .main.compact { flex: 1; } /* 非管理员占半屏 */
   .card {
     background: #fff;
-    padding: 20px;
+    padding: 15px 20px;
     border-radius: 12px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    box-shadow: 0 0 8px rgba(0,0,0,0.1);
   }
   .sidebar {
     flex: 1;
@@ -40,14 +41,15 @@
     overflow-y: auto;
   }
   label { display: block; margin: 5px 0; }
-  button { margin-left: 10px; padding: 3px 8px; border-radius: 4px; cursor: pointer; }
+  button { margin-left: 5px; padding: 3px 8px; border-radius: 4px; cursor: pointer; }
   button:hover { background-color: #eee; }
   .admin { color: green; font-weight: bold; }
   table { border-collapse: collapse; width: 100%; margin-top: 10px; }
   th, td { border: 1px solid #aaa; padding: 6px 10px; text-align: center; }
   #currentUserBar { margin-bottom: 20px; text-align: center; }
-  .section-title { display: flex; justify-content: space-between; align-items: center; }
-  .user-item { display: flex; justify-content: space-between; margin: 3px 0; }
+  .section-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .user-grid { display: flex; flex-wrap: wrap; gap: 5px; }
+  .user-grid .user-item { flex: 0 0 calc(33.333% - 5px); display: flex; align-items: center; }
 </style>
 </head>
 
@@ -69,8 +71,8 @@
 </div>
 
 <div class="container">
-  <!-- 主区：今日休息 + 11点/12点 -->
-  <div class="main">
+  <!-- 主区 -->
+  <div class="main" id="mainArea">
     <!-- 今日休息卡片 -->
     <div class="card">
       <div class="section-title">
@@ -81,7 +83,7 @@
         11 点最多休息人数：
         <select id="maxRestSelect"></select>
       </div>
-      <div id="restBox" style="margin-top:10px;"></div>
+      <div id="restBox" class="user-grid" style="margin-top:10px;"></div>
     </div>
 
     <!-- 11点卡片 -->
@@ -90,7 +92,7 @@
         <h2>🕚 11 点</h2>
         <span id="eat11Count"></span>
       </div>
-      <div id="eat11"></div>
+      <div id="eat11" class="user-grid"></div>
     </div>
 
     <!-- 12点卡片 -->
@@ -98,7 +100,7 @@
       <div class="section-title">
         <h2>🕛 12 点</h2>
       </div>
-      <div id="eat12"></div>
+      <div id="eat12" class="user-grid"></div>
     </div>
 
     <!-- 统计卡片 -->
@@ -108,15 +110,13 @@
     </div>
   </div>
 
-  <!-- 右侧：管理员面板 -->
+  <!-- 管理员面板 -->
   <div class="sidebar" id="adminPanel" style="display:none;">
     <h2 class="admin">👑 管理员设置</h2>
-
     <h3>人员管理</h3>
     <input id="newUser" placeholder="新增成员名">
     <button onclick="addUser()">新增</button>
     <div id="userList" style="margin-top:10px;"></div>
-
     <button style="margin-top:10px;" onclick="exportExcel()">📤 导出 Excel</button>
   </div>
 </div>
@@ -209,19 +209,22 @@ function exportExcel() {
 
 function render() {
   document.getElementById("currentUserName").innerText = currentUser + (isAdmin() ? "（管理员）" : "");
+  
+  // 主区布局
+  document.getElementById("mainArea").classList.toggle("compact", !isAdmin());
+
   document.getElementById("adminPanel").style.display = isAdmin() ? "block" : "none";
 
-  // 更新休息人数上限
+  // 休息人数上限
   const maxRestSel = document.getElementById("maxRestSelect");
   maxRestSel.innerHTML = "";
   for (let i = 1; i <= USERS.length; i++) maxRestSel.innerHTML += `<option value="${i}">${i}</option>`;
   maxRestSel.value = MAX_REST;
   maxRestSel.onchange = e => { MAX_REST = Number(e.target.value); save(); render(); };
 
-  // 今日休息列表
+  // 今日休息人员（多列）
   const restBox = document.getElementById("restBox");
   restBox.innerHTML = "";
-  state.rest.forEach(u => {}); // just to trigger length
   USERS.forEach(u => {
     restBox.innerHTML += `<div class="user-item">
       <label><input type="checkbox" ${state.rest.includes(u)?"checked":""} onchange="toggleRest('${u}',this.checked)">${u}</label>
@@ -229,12 +232,12 @@ function render() {
   });
   document.getElementById("restCount").innerText = `${state.rest.length}/${MAX_REST}`;
 
-  // 11 点
+  // 11点人员
   const d11 = document.getElementById("eat11");
   const d12 = document.getElementById("eat12");
   d11.innerHTML = "";
   d12.innerHTML = "";
-  state.eat11.forEach(u => d11.innerHTML += `<div>${u}</div>`);
+  state.eat11.forEach(u => d11.innerHTML += `<div class="user-item">${u}</div>`);
   USERS.filter(u => !state.rest.includes(u) && !state.eat11.includes(u))
        .forEach(u => { d12.innerHTML += `<div class="user-item">${u}${u===currentUser?`<button onclick="choose11('${u}')">我要 11 点</button>`:""}</div>`; });
   document.getElementById("eat11Count").innerText = `${state.eat11.length}/${MAX_11}`;
@@ -270,5 +273,6 @@ function init() {
 
 init();
 </script>
+
 </body>
 </html>
