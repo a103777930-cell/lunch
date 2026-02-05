@@ -37,11 +37,6 @@
 <div id="adminPanel" style="display:none">
   <h2 class="admin">👑 管理员设置</h2>
 
-  <div>
-    11 点最多人数：
-    <select id="max11Select"></select>
-  </div>
-
   <h3>人员管理</h3>
   <input id="newUser" placeholder="新增成员名">
   <button onclick="addUser()">新增</button>
@@ -53,6 +48,12 @@
 
 <!-- 今日休息（多人，可全员修改） -->
 <h2>😴 今日休息</h2>
+
+<div>
+  11 点最多休息人数：
+  <select id="maxRestSelect"></select>
+</div>
+
 <div id="restBox"></div>
 
 <h2>🕚 11 点</h2>
@@ -69,6 +70,7 @@
 let USERS = JSON.parse(localStorage.getItem("users")) || ["A","B","C","D","E","F"];
 const ADMINS = ["A","B"];
 let MAX_11 = Number(localStorage.getItem("MAX_11")) || 2;
+let MAX_REST = Number(localStorage.getItem("MAX_REST")) || USERS.length; // 新增：休息人数上限
 
 const today = new Date().toISOString().slice(0,10);
 const storeKey = "lunch_" + today;
@@ -79,7 +81,7 @@ let currentUser = localStorage.getItem("currentUser") || sessionStorage.getItem(
 
 /* ========= 数据 ========= */
 let state = JSON.parse(localStorage.getItem(storeKey)) || {
-  rest: [],     // ← 多人休息
+  rest: [],
   eat11: [],
   eat12: []
 };
@@ -97,6 +99,7 @@ function save() {
   localStorage.setItem(statKey, JSON.stringify(stats));
   localStorage.setItem("users", JSON.stringify(USERS));
   localStorage.setItem("MAX_11", MAX_11);
+  localStorage.setItem("MAX_REST", MAX_REST);
 }
 
 /* ========= 登录 ========= */
@@ -144,6 +147,11 @@ function removeUser(u) {
 /* ========= 休息勾选（可全员修改） ========= */
 function toggleRest(user, checked) {
   if (checked) {
+    if (state.rest.length >= MAX_REST) {
+      alert(`休息人数已达上限 (${MAX_REST})`);
+      render();
+      return;
+    }
     if (!state.rest.includes(user)) state.rest.push(user);
     state.eat11 = state.eat11.filter(u => u !== user);
   } else {
@@ -200,6 +208,19 @@ function render() {
 
   document.getElementById("adminPanel").style.display =
     isAdmin() ? "block" : "none";
+
+  /* 休息人数选择 */
+  const maxRestSel = document.getElementById("maxRestSelect");
+  maxRestSel.innerHTML = "";
+  for (let i = 1; i <= USERS.length; i++) {
+    maxRestSel.innerHTML += `<option value="${i}">${i}</option>`;
+  }
+  maxRestSel.value = MAX_REST;
+  maxRestSel.onchange = e => {
+    MAX_REST = Number(e.target.value);
+    save();
+    render();
+  };
 
   /* 休息 */
   const restBox = document.getElementById("restBox");
@@ -259,18 +280,6 @@ function init() {
   document.getElementById("currentUserBar").style.display = "block";
 
   if (isAdmin()) {
-    const maxSel = document.getElementById("max11Select");
-    maxSel.innerHTML = "";
-    for (let i = 1; i <= USERS.length; i++) {
-      maxSel.innerHTML += `<option value="${i}">${i}</option>`;
-    }
-    maxSel.value = MAX_11;
-    maxSel.onchange = e => {
-      MAX_11 = Number(e.target.value);
-      save();
-      render();
-    };
-
     const ul = document.getElementById("userList");
     ul.innerHTML = "";
     USERS.forEach(u => {
