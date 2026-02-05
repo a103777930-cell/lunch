@@ -22,6 +22,7 @@
 <div id="loginBox">
   👤 我是：
   <select id="userSelect"></select>
+  <input type="checkbox" id="rememberMe"> 记住我
   <button onclick="login()">确认</button>
 </div>
 
@@ -50,7 +51,7 @@
   <hr>
 </div>
 
-<!-- 今日休息（多人） -->
+<!-- 今日休息（多人，可全员修改） -->
 <h2>😴 今日休息</h2>
 <div id="restBox"></div>
 
@@ -74,7 +75,7 @@ const storeKey = "lunch_" + today;
 const statKey = "lunch_stat";
 
 /* ========= 登录 ========= */
-let currentUser = localStorage.getItem("currentUser") || "";
+let currentUser = localStorage.getItem("currentUser") || sessionStorage.getItem("currentUser") || "";
 
 /* ========= 数据 ========= */
 let state = JSON.parse(localStorage.getItem(storeKey)) || {
@@ -84,7 +85,7 @@ let state = JSON.parse(localStorage.getItem(storeKey)) || {
 };
 
 let stats = JSON.parse(localStorage.getItem(statKey)) || {};
-USERS.forEach(u => stats[u] ||= []);
+USERS.forEach(u => { stats[u] = stats[u] || []; });
 
 /* ========= 工具 ========= */
 function isAdmin() {
@@ -101,12 +102,20 @@ function save() {
 /* ========= 登录 ========= */
 function login() {
   currentUser = document.getElementById("userSelect").value;
-  localStorage.setItem("currentUser", currentUser);
+  const remember = document.getElementById("rememberMe").checked;
+  
+  if (remember) {
+    localStorage.setItem("currentUser", currentUser);
+  } else {
+    sessionStorage.setItem("currentUser", currentUser);
+  }
+
   init();
 }
 
 function logout() {
   localStorage.removeItem("currentUser");
+  sessionStorage.removeItem("currentUser");
   location.reload();
 }
 
@@ -121,6 +130,8 @@ function addUser() {
 }
 
 function removeUser(u) {
+  if (!confirm(`确定删除用户 ${u} 及其所有数据吗？`)) return;
+
   USERS = USERS.filter(x => x !== u);
   delete stats[u];
   state.rest = state.rest.filter(x => x !== u);
@@ -130,7 +141,7 @@ function removeUser(u) {
   init();
 }
 
-/* ========= 休息勾选 ========= */
+/* ========= 休息勾选（可全员修改） ========= */
 function toggleRest(user, checked) {
   if (checked) {
     if (!state.rest.includes(user)) state.rest.push(user);
@@ -145,9 +156,21 @@ function toggleRest(user, checked) {
 /* ========= 选择 11 点 ========= */
 function choose11(user) {
   if (user !== currentUser) return;
-  if (state.eat11.includes(user)) return;
-  if (state.eat11.length >= MAX_11) return;
-  if (state.rest.includes(user)) return;
+
+  if (state.eat11.includes(user)) {
+    alert("你已选择 11 点！");
+    return;
+  }
+
+  if (state.eat11.length >= MAX_11) {
+    alert("11 点人数已满！");
+    return;
+  }
+
+  if (state.rest.includes(user)) {
+    alert("你今天已休息，无法选择 11 点");
+    return;
+  }
 
   state.eat11.push(user);
   stats[user].push(today);
@@ -157,9 +180,11 @@ function choose11(user) {
 
 /* ========= Excel ========= */
 function exportExcel() {
-  let csv = "日期,姓名\n";
+  let csv = `"日期","姓名"\n`;
   Object.keys(stats).forEach(u => {
-    stats[u].forEach(d => csv += `${d},${u}\n`);
+    stats[u].forEach(d => {
+      csv += `"${d}","${u}"\n`;
+    });
   });
   const blob = new Blob([csv], { type: "text/csv" });
   const a = document.createElement("a");
