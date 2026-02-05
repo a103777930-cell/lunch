@@ -12,10 +12,9 @@
     color: #333;
   }
   h1 { text-align: center; margin-bottom: 20px; }
-  h2 { margin: 0; }
+  h2 { margin: 0; font-size: 18px; }
   .container {
     display: flex;
-    justify-content: space-between;
     gap: 20px;
   }
   .main {
@@ -23,6 +22,7 @@
     display: flex;
     flex-direction: column;
     gap: 20px;
+    transition: flex 0.3s;
   }
   .main.compact { flex: 1; } /* 非管理员占半屏 */
   .card {
@@ -40,16 +40,20 @@
     max-height: 80vh;
     overflow-y: auto;
   }
-  label { display: block; margin: 5px 0; }
-  button { margin-left: 5px; padding: 3px 8px; border-radius: 4px; cursor: pointer; }
+  label { display: block; margin: 2px 0; }
+  button { margin-left: 5px; padding: 3px 6px; border-radius: 4px; cursor: pointer; font-size: 12px; }
   button:hover { background-color: #eee; }
-  .admin { color: green; font-weight: bold; }
-  table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+  table { border-collapse: collapse; width: 100%; margin-top: 10px; font-size: 14px; }
   th, td { border: 1px solid #aaa; padding: 6px 10px; text-align: center; }
   #currentUserBar { margin-bottom: 20px; text-align: center; }
   .section-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-  .user-grid { display: flex; flex-wrap: wrap; gap: 5px; }
-  .user-grid .user-item { flex: 0 0 calc(33.333% - 5px); display: flex; align-items: center; }
+  .user-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); 
+    gap: 5px; 
+  }
+  .user-item { display: flex; align-items: center; font-size: 14px; justify-content: space-between; }
+  .user-item button { margin-left: 3px; padding: 2px 4px; font-size: 12px; }
 </style>
 </head>
 
@@ -73,7 +77,7 @@
 <div class="container">
   <!-- 主区 -->
   <div class="main" id="mainArea">
-    <!-- 今日休息卡片 -->
+    <!-- 今日休息 -->
     <div class="card">
       <div class="section-title">
         <h2>😴 今日休息</h2>
@@ -86,16 +90,17 @@
       <div id="restBox" class="user-grid" style="margin-top:10px;"></div>
     </div>
 
-    <!-- 11点卡片 -->
+    <!-- 11点 -->
     <div class="card">
       <div class="section-title">
         <h2>🕚 11 点</h2>
         <span id="eat11Count"></span>
       </div>
       <div id="eat11" class="user-grid"></div>
+      <div id="eat12" class="user-grid" style="margin-top:5px;"></div>
     </div>
 
-    <!-- 12点卡片 -->
+    <!-- 12点 -->
     <div class="card">
       <div class="section-title">
         <h2>🕛 12 点</h2>
@@ -103,7 +108,7 @@
       <div id="eat12" class="user-grid"></div>
     </div>
 
-    <!-- 统计卡片 -->
+    <!-- 统计 -->
     <div class="card">
       <h2>📊 本月 11 点统计</h2>
       <div id="statTable"></div>
@@ -115,6 +120,7 @@
     <h2 class="admin">👑 管理员设置</h2>
     <h3>人员管理</h3>
     <input id="newUser" placeholder="新增成员名">
+    <label><input type="checkbox" id="newAdmin"> 管理员</label>
     <button onclick="addUser()">新增</button>
     <div id="userList" style="margin-top:10px;"></div>
     <button style="margin-top:10px;" onclick="exportExcel()">📤 导出 Excel</button>
@@ -123,7 +129,7 @@
 
 <script>
 let USERS = JSON.parse(localStorage.getItem("users")) || ["A","B","C","D","E","F"];
-const ADMINS = ["A","B"];
+let ADMINS = JSON.parse(localStorage.getItem("admins")) || ["A","B"];
 let MAX_11 = Number(localStorage.getItem("MAX_11")) || 2;
 let MAX_REST = Number(localStorage.getItem("MAX_REST")) || USERS.length;
 
@@ -135,13 +141,14 @@ let currentUser = localStorage.getItem("currentUser") || sessionStorage.getItem(
 
 let state = JSON.parse(localStorage.getItem(storeKey)) || {rest: [], eat11: [], eat12: []};
 let stats = JSON.parse(localStorage.getItem(statKey)) || {};
-USERS.forEach(u => { stats[u] = stats[u] || []; });
+USERS.forEach(u => stats[u] = stats[u] || []);
 
 function isAdmin() { return ADMINS.includes(currentUser); }
 function save() {
   localStorage.setItem(storeKey, JSON.stringify(state));
   localStorage.setItem(statKey, JSON.stringify(stats));
   localStorage.setItem("users", JSON.stringify(USERS));
+  localStorage.setItem("admins", JSON.stringify(ADMINS));
   localStorage.setItem("MAX_11", MAX_11);
   localStorage.setItem("MAX_REST", MAX_REST);
 }
@@ -149,8 +156,8 @@ function save() {
 function login() {
   currentUser = document.getElementById("userSelect").value;
   const remember = document.getElementById("rememberMe").checked;
-  if (remember) { localStorage.setItem("currentUser", currentUser); }
-  else { sessionStorage.setItem("currentUser", currentUser); }
+  if (remember) localStorage.setItem("currentUser", currentUser);
+  else sessionStorage.setItem("currentUser", currentUser);
   init();
 }
 
@@ -161,118 +168,112 @@ function addUser() {
   if (!name || USERS.includes(name)) return;
   USERS.push(name);
   stats[name] = [];
+  if(document.getElementById("newAdmin").checked) ADMINS.push(name);
   save();
   init();
 }
 
 function removeUser(u) {
   if (!confirm(`确定删除用户 ${u} 及其所有数据吗？`)) return;
-  USERS = USERS.filter(x => x !== u);
+  USERS = USERS.filter(x=>x!==u);
   delete stats[u];
-  state.rest = state.rest.filter(x => x !== u);
-  state.eat11 = state.eat11.filter(x => x !== u);
-  state.eat12 = state.eat12.filter(x => x !== u);
-  save();
-  init();
+  state.rest = state.rest.filter(x=>x!==u);
+  state.eat11 = state.eat11.filter(x=>x!==u);
+  state.eat12 = state.eat12.filter(x=>x!==u);
+  ADMINS = ADMINS.filter(x=>x!==u);
+  save(); init();
 }
 
 function toggleRest(user, checked) {
-  if (checked) {
-    if (state.rest.length >= MAX_REST) { alert(`休息人数已达上限 (${MAX_REST})`); render(); return; }
-    if (!state.rest.includes(user)) state.rest.push(user);
-    state.eat11 = state.eat11.filter(u => u !== user);
-  } else { state.rest = state.rest.filter(u => u !== user); }
-  save();
-  render();
+  if(checked){
+    if(state.rest.length>=MAX_REST){ alert(`休息人数已达上限 (${MAX_REST})`); render(); return; }
+    if(!state.rest.includes(user)) state.rest.push(user);
+    state.eat11 = state.eat11.filter(u=>u!==user);
+  } else state.rest = state.rest.filter(u=>u!==user);
+  save(); render();
 }
 
 function choose11(user) {
-  if (user !== currentUser) return;
-  if (state.eat11.includes(user)) { alert("你已选择 11 点！"); return; }
-  if (state.eat11.length >= MAX_11) { alert("11 点人数已满！"); return; }
-  if (state.rest.includes(user)) { alert("你今天已休息，无法选择 11 点"); return; }
+  if(user!==currentUser) return;
+  if(state.eat11.includes(user)){ alert("你已选择 11 点！"); return; }
+  if(state.eat11.length>=MAX_11){ alert("11 点人数已满！"); return; }
+  if(state.rest.includes(user)){ alert("你今天已休息，无法选择 11 点"); return; }
   state.eat11.push(user);
   stats[user].push(today);
-  save();
-  render();
+  save(); render();
 }
 
 function exportExcel() {
   let csv = `"日期","姓名"\n`;
-  Object.keys(stats).forEach(u => stats[u].forEach(d => { csv += `"${d}","${u}"\n`; }));
-  const blob = new Blob([csv], { type: "text/csv" });
+  Object.keys(stats).forEach(u=>stats[u].forEach(d=>{csv+=`"${d}","${u}"\n`;}));
+  const blob = new Blob([csv], {type:"text/csv"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = "lunch_stat.csv";
   a.click();
 }
 
-function render() {
-  document.getElementById("currentUserName").innerText = currentUser + (isAdmin() ? "（管理员）" : "");
-  
-  // 主区布局
+function render(){
+  document.getElementById("currentUserName").innerText = currentUser + (isAdmin()?"（管理员）":"");
   document.getElementById("mainArea").classList.toggle("compact", !isAdmin());
-
-  document.getElementById("adminPanel").style.display = isAdmin() ? "block" : "none";
+  document.getElementById("adminPanel").style.display = isAdmin()?"block":"none";
 
   // 休息人数上限
   const maxRestSel = document.getElementById("maxRestSelect");
-  maxRestSel.innerHTML = "";
-  for (let i = 1; i <= USERS.length; i++) maxRestSel.innerHTML += `<option value="${i}">${i}</option>`;
+  maxRestSel.innerHTML="";
+  for(let i=1;i<=USERS.length;i++) maxRestSel.innerHTML+=`<option value="${i}">${i}</option>`;
   maxRestSel.value = MAX_REST;
-  maxRestSel.onchange = e => { MAX_REST = Number(e.target.value); save(); render(); };
+  maxRestSel.onchange = e=>{ MAX_REST=Number(e.target.value); save(); render(); };
 
-  // 今日休息人员（多列）
+  // 今日休息
   const restBox = document.getElementById("restBox");
-  restBox.innerHTML = "";
-  USERS.forEach(u => {
-    restBox.innerHTML += `<div class="user-item">
-      <label><input type="checkbox" ${state.rest.includes(u)?"checked":""} onchange="toggleRest('${u}',this.checked)">${u}</label>
-    </div>`;
+  restBox.innerHTML="";
+  USERS.forEach(u=>{
+    restBox.innerHTML+=`<div class="user-item"><label><input type="checkbox" ${state.rest.includes(u)?"checked":""} onchange="toggleRest('${u}',this.checked)">${u}</label></div>`;
   });
   document.getElementById("restCount").innerText = `${state.rest.length}/${MAX_REST}`;
 
-  // 11点人员
+  // 11点
   const d11 = document.getElementById("eat11");
-  const d12 = document.getElementById("eat12");
-  d11.innerHTML = "";
-  d12.innerHTML = "";
-  state.eat11.forEach(u => d11.innerHTML += `<div class="user-item">${u}</div>`);
-  USERS.filter(u => !state.rest.includes(u) && !state.eat11.includes(u))
-       .forEach(u => { d12.innerHTML += `<div class="user-item">${u}${u===currentUser?`<button onclick="choose11('${u}')">我要 11 点</button>`:""}</div>`; });
+  d11.innerHTML="";
+  state.eat11.forEach(u=>d11.innerHTML+=`<div class="user-item">${u}</div>`);
   document.getElementById("eat11Count").innerText = `${state.eat11.length}/${MAX_11}`;
 
+  // 12点
+  const d12 = document.getElementById("eat12");
+  d12.innerHTML="";
+  USERS.filter(u=>!state.rest.includes(u)&&!state.eat11.includes(u))
+       .forEach(u=>d12.innerHTML+=`<div class="user-item">${u}${u===currentUser?`<button onclick="choose11('${u}')">我要 11 点</button>`:""}</div>`);
+
+  // 统计
   renderStats();
-}
 
-function renderStats() {
-  let html = "<table><tr><th>姓名</th><th>11 点次数</th></tr>";
-  USERS.forEach(u => html += `<tr><td>${u}</td><td>${stats[u]?.length || 0}</td></tr>`);
-  html += "</table>";
-  document.getElementById("statTable").innerHTML = html;
-}
-
-function init() {
-  const sel = document.getElementById("userSelect");
-  sel.innerHTML = "";
-  USERS.forEach(u => sel.innerHTML += `<option>${u}</option>`);
-
-  if (!currentUser) return;
-
-  document.getElementById("loginBox").style.display = "none";
-  document.getElementById("currentUserBar").style.display = "block";
-
-  if (isAdmin()) {
+  // 管理员列表
+  if(isAdmin()){
     const ul = document.getElementById("userList");
-    ul.innerHTML = "";
-    USERS.forEach(u => ul.innerHTML += `<div>${u}${!ADMINS.includes(u)?`<button onclick="removeUser('${u}')">删除</button>`:"(管理员)"}</div>`);
+    ul.innerHTML="";
+    USERS.forEach(u=>ul.innerHTML+=`<div>${u} ${ADMINS.includes(u)?"(管理员)":"<button onclick='removeUser(\""+u+"\")'>删除</button>"} </div>`);
   }
+}
 
+function renderStats(){
+  let html="<table><tr><th>姓名</th><th>11 点次数</th></tr>";
+  USERS.forEach(u=>html+=`<tr><td>${u}</td><td>${stats[u]?.length||0}</td></tr>`);
+  html+="</table>";
+  document.getElementById("statTable").innerHTML=html;
+}
+
+function init(){
+  const sel=document.getElementById("userSelect");
+  sel.innerHTML="";
+  USERS.forEach(u=>sel.innerHTML+=`<option>${u}</option>`);
+  if(!currentUser) return;
+  document.getElementById("loginBox").style.display="none";
+  document.getElementById("currentUserBar").style.display="block";
   render();
 }
 
 init();
 </script>
-
 </body>
 </html>
