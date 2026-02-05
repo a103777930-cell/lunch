@@ -4,13 +4,43 @@
 <meta charset="UTF-8">
 <title>午饭排班</title>
 <style>
-  body { font-family: Arial; padding: 20px; }
-  h2 { margin-top: 25px; }
-  .user { margin: 5px 0; }
-  button { margin-left: 10px; }
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background: #f4f4f9;
+    color: #333;
+  }
+  h1 { text-align: center; margin-bottom: 20px; }
+  h2 { margin-top: 20px; margin-bottom: 10px; }
+  .container {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  .main {
+    flex: 2;
+    background: #fff;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  }
+  .sidebar {
+    flex: 1;
+    background: #fff;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+  label { display: block; margin: 5px 0; }
+  button { margin-left: 10px; padding: 3px 8px; border-radius: 4px; cursor: pointer; }
+  button:hover { background-color: #eee; }
   .admin { color: green; font-weight: bold; }
-  table { border-collapse: collapse; margin-top: 10px; }
-  th, td { border: 1px solid #aaa; padding: 6px 10px; }
+  table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+  th, td { border: 1px solid #aaa; padding: 6px 10px; text-align: center; }
+  #currentUserBar { margin-bottom: 20px; }
 </style>
 </head>
 
@@ -19,58 +49,57 @@
 <h1>🍱 午饭排班</h1>
 
 <!-- 登录 -->
-<div id="loginBox">
+<div id="loginBox" style="text-align:center; margin-bottom:20px;">
   👤 我是：
   <select id="userSelect"></select>
   <input type="checkbox" id="rememberMe"> 记住我
   <button onclick="login()">确认</button>
 </div>
 
-<div id="currentUserBar" style="display:none">
+<div id="currentUserBar" style="display:none; text-align:center;">
   当前用户：<span id="currentUserName"></span>
   <button onclick="logout()">切换用户</button>
 </div>
 
-<hr>
+<div class="container">
+  <!-- 主区：今日休息 + 11点/12点 -->
+  <div class="main">
+    <h2>😴 今日休息</h2>
+    <div>
+      11 点最多休息人数：
+      <select id="maxRestSelect"></select>
+    </div>
+    <div id="restBox"></div>
 
-<!-- 管理员面板 -->
-<div id="adminPanel" style="display:none">
-  <h2 class="admin">👑 管理员设置</h2>
+    <h2>🕚 11 点</h2>
+    <div id="eat11"></div>
 
-  <h3>人员管理</h3>
-  <input id="newUser" placeholder="新增成员名">
-  <button onclick="addUser()">新增</button>
-  <div id="userList"></div>
+    <h2>🕛 12 点</h2>
+    <div id="eat12"></div>
 
-  <button onclick="exportExcel()">📤 导出 Excel</button>
-  <hr>
+    <h2>📊 本月 11 点统计</h2>
+    <div id="statTable"></div>
+  </div>
+
+  <!-- 右侧：管理员面板 -->
+  <div class="sidebar" id="adminPanel" style="display:none;">
+    <h2 class="admin">👑 管理员设置</h2>
+
+    <h3>人员管理</h3>
+    <input id="newUser" placeholder="新增成员名">
+    <button onclick="addUser()">新增</button>
+    <div id="userList" style="margin-top:10px;"></div>
+
+    <button style="margin-top:10px;" onclick="exportExcel()">📤 导出 Excel</button>
+  </div>
 </div>
-
-<!-- 今日休息（多人，可全员修改） -->
-<h2>😴 今日休息</h2>
-
-<div>
-  11 点最多休息人数：
-  <select id="maxRestSelect"></select>
-</div>
-
-<div id="restBox"></div>
-
-<h2>🕚 11 点</h2>
-<div id="eat11"></div>
-
-<h2>🕛 12 点</h2>
-<div id="eat12"></div>
-
-<h2>📊 本月 11 点统计</h2>
-<div id="statTable"></div>
 
 <script>
 /* ========= 配置 ========= */
 let USERS = JSON.parse(localStorage.getItem("users")) || ["A","B","C","D","E","F"];
 const ADMINS = ["A","B"];
 let MAX_11 = Number(localStorage.getItem("MAX_11")) || 2;
-let MAX_REST = Number(localStorage.getItem("MAX_REST")) || USERS.length; // 新增：休息人数上限
+let MAX_REST = Number(localStorage.getItem("MAX_REST")) || USERS.length;
 
 const today = new Date().toISOString().slice(0,10);
 const storeKey = "lunch_" + today;
@@ -90,9 +119,7 @@ let stats = JSON.parse(localStorage.getItem(statKey)) || {};
 USERS.forEach(u => { stats[u] = stats[u] || []; });
 
 /* ========= 工具 ========= */
-function isAdmin() {
-  return ADMINS.includes(currentUser);
-}
+function isAdmin() { return ADMINS.includes(currentUser); }
 
 function save() {
   localStorage.setItem(storeKey, JSON.stringify(state));
@@ -106,13 +133,8 @@ function save() {
 function login() {
   currentUser = document.getElementById("userSelect").value;
   const remember = document.getElementById("rememberMe").checked;
-  
-  if (remember) {
-    localStorage.setItem("currentUser", currentUser);
-  } else {
-    sessionStorage.setItem("currentUser", currentUser);
-  }
-
+  if (remember) { localStorage.setItem("currentUser", currentUser); }
+  else { sessionStorage.setItem("currentUser", currentUser); }
   init();
 }
 
@@ -134,7 +156,6 @@ function addUser() {
 
 function removeUser(u) {
   if (!confirm(`确定删除用户 ${u} 及其所有数据吗？`)) return;
-
   USERS = USERS.filter(x => x !== u);
   delete stats[u];
   state.rest = state.rest.filter(x => x !== u);
@@ -144,7 +165,7 @@ function removeUser(u) {
   init();
 }
 
-/* ========= 休息勾选（可全员修改） ========= */
+/* ========= 今日休息 ========= */
 function toggleRest(user, checked) {
   if (checked) {
     if (state.rest.length >= MAX_REST) {
@@ -161,24 +182,12 @@ function toggleRest(user, checked) {
   render();
 }
 
-/* ========= 选择 11 点 ========= */
+/* ========= 11点选择 ========= */
 function choose11(user) {
   if (user !== currentUser) return;
-
-  if (state.eat11.includes(user)) {
-    alert("你已选择 11 点！");
-    return;
-  }
-
-  if (state.eat11.length >= MAX_11) {
-    alert("11 点人数已满！");
-    return;
-  }
-
-  if (state.rest.includes(user)) {
-    alert("你今天已休息，无法选择 11 点");
-    return;
-  }
+  if (state.eat11.includes(user)) { alert("你已选择 11 点！"); return; }
+  if (state.eat11.length >= MAX_11) { alert("11 点人数已满！"); return; }
+  if (state.rest.includes(user)) { alert("你今天已休息，无法选择 11 点"); return; }
 
   state.eat11.push(user);
   stats[user].push(today);
@@ -189,11 +198,7 @@ function choose11(user) {
 /* ========= Excel ========= */
 function exportExcel() {
   let csv = `"日期","姓名"\n`;
-  Object.keys(stats).forEach(u => {
-    stats[u].forEach(d => {
-      csv += `"${d}","${u}"\n`;
-    });
-  });
+  Object.keys(stats).forEach(u => { stats[u].forEach(d => { csv += `"${d}","${u}"\n`; }); });
   const blob = new Blob([csv], { type: "text/csv" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -206,23 +211,16 @@ function render() {
   document.getElementById("currentUserName").innerText =
     currentUser + (isAdmin() ? "（管理员）" : "");
 
-  document.getElementById("adminPanel").style.display =
-    isAdmin() ? "block" : "none";
+  document.getElementById("adminPanel").style.display = isAdmin() ? "block" : "none";
 
-  /* 休息人数选择 */
+  /* 休息人数上限 */
   const maxRestSel = document.getElementById("maxRestSelect");
   maxRestSel.innerHTML = "";
-  for (let i = 1; i <= USERS.length; i++) {
-    maxRestSel.innerHTML += `<option value="${i}">${i}</option>`;
-  }
+  for (let i = 1; i <= USERS.length; i++) { maxRestSel.innerHTML += `<option value="${i}">${i}</option>`; }
   maxRestSel.value = MAX_REST;
-  maxRestSel.onchange = e => {
-    MAX_REST = Number(e.target.value);
-    save();
-    render();
-  };
+  maxRestSel.onchange = e => { MAX_REST = Number(e.target.value); save(); render(); };
 
-  /* 休息 */
+  /* 今日休息列表 */
   const restBox = document.getElementById("restBox");
   restBox.innerHTML = "";
   USERS.forEach(u => {
@@ -232,38 +230,25 @@ function render() {
           ${state.rest.includes(u) ? "checked" : ""}
           onchange="toggleRest('${u}', this.checked)">
         ${u}
-      </label><br>
-    `;
+      </label><br>`;
   });
 
-  /* 11 / 12 */
+  /* 11 / 12 点 */
   const d11 = document.getElementById("eat11");
   const d12 = document.getElementById("eat12");
   d11.innerHTML = "";
   d12.innerHTML = "";
-
   state.eat11.forEach(u => d11.innerHTML += `<div>${u}</div>`);
+  USERS.filter(u => !state.rest.includes(u) && !state.eat11.includes(u))
+       .forEach(u => { d12.innerHTML += `<div>${u}${u===currentUser?`<button onclick="choose11('${u}')">我要 11 点</button>`:""}</div>`; });
 
-  USERS.filter(u =>
-    !state.rest.includes(u) &&
-    !state.eat11.includes(u)
-  ).forEach(u => {
-    d12.innerHTML += `
-      <div>${u}
-        ${u === currentUser ? `<button onclick="choose11('${u}')">我要 11 点</button>` : ""}
-      </div>
-    `;
-  });
-
+  /* 统计 */
   renderStats();
 }
 
-/* ========= 统计 ========= */
 function renderStats() {
   let html = "<table><tr><th>姓名</th><th>11 点次数</th></tr>";
-  USERS.forEach(u => {
-    html += `<tr><td>${u}</td><td>${stats[u]?.length || 0}</td></tr>`;
-  });
+  USERS.forEach(u => { html += `<tr><td>${u}</td><td>${stats[u]?.length || 0}</td></tr>`; });
   html += "</table>";
   document.getElementById("statTable").innerHTML = html;
 }
@@ -283,13 +268,7 @@ function init() {
     const ul = document.getElementById("userList");
     ul.innerHTML = "";
     USERS.forEach(u => {
-      ul.innerHTML += `
-        <div>${u}
-          ${!ADMINS.includes(u)
-            ? `<button onclick="removeUser('${u}')">删除</button>`
-            : "(管理员)"
-          }
-        </div>`;
+      ul.innerHTML += `<div>${u}${!ADMINS.includes(u)?`<button onclick="removeUser('${u}')">删除</button>`:"(管理员)"}</div>`;
     });
   }
 
